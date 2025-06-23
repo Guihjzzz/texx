@@ -68,7 +68,7 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 	let packName = config.PACK_NAME ?? getDefaultPackName(structureFiles);
 	
     let packIconBlob;
-    try { // HoloLab Customization
+    try { 
         const response = await fetch(FIXED_PACK_ICON_PATH);
         if (!response.ok) throw new Error(`HTTP status ${response.status} for ${FIXED_PACK_ICON_PATH}`);
         packIconBlob = await response.blob();
@@ -128,13 +128,13 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 	
     let { blockMetadata, itemMetadata } = loadedStuff.data;
 
-    let packageTemplateLangFiles = { // HoloLab Customization
+    let packageTemplateLangFiles = {
         "en_US": en_US_lang_pack_template,
         "pt_BR": pt_BR_lang_pack_template,
         "zh_CN": zh_CN_lang_pack_template
     };
 
-    let fullResourceLangFiles = {}; // HoloLab Customization
+    let fullResourceLangFiles = {};
     for (const langCode of languagesDotJson) {
         try {
             fullResourceLangFiles[langCode] = await resourcePackStack.fetchResource(`texts/${langCode}.lang`).then(res => {
@@ -181,37 +181,27 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 					"uv": imageUv["uv"],
 					"uv_size": imageUv["uv_size"]
 				};
-				if("crop" in imageUv) {
-					let crop = imageUv["crop"];
-					let cropXRem = 1 - crop["w"] - crop["x"]; 
-					let cropYRem = 1 - crop["h"] - crop["y"];
-					if(cube["size"][0] == 0) {
-						cube["origin"][2] += cube["size"][2] * (face["flip_horizontally"]? cropXRem : crop["x"]);
-						cube["origin"][1] += cube["size"][1] * (face["flip_vertically"]? crop["y"] : cropYRem); 
-						cube["size"][2] *= crop["w"];
-						cube["size"][1] *= crop["h"];
-					} else if(cube["size"][1] == 0) {
-						cube["origin"][0] += cube["size"][0] * (face["flip_horizontally"]? cropXRem : crop["x"]);
-						cube["origin"][2] += cube["size"][2] * (face["flip_vertically"]? cropYRem : crop["y"]);
-						cube["size"][0] *= crop["w"];
-						cube["size"][2] *= crop["h"];
-					} else if(cube["size"][2] == 0) {
-						cube["origin"][0] += cube["size"][0] * (face["flip_horizontally"]? cropXRem : crop["x"]);
-						cube["origin"][1] += cube["size"][1] * (face["flip_vertically"]? crop["y"] : cropYRem);
-						cube["size"][0] *= crop["w"];
-						cube["size"][1] *= crop["h"];
-					}
-				}
 			});
 		});
 	});
 	
-	let structureGeoTemplate = hologramGeo["minecraft:geometry"][0];
-	hologramGeo["minecraft:geometry"].splice(0, 1);
-	
-	structureGeoTemplate["description"]["texture_width"] = textureAtlas.atlasWidth;
-	structureGeoTemplate["description"]["texture_height"] = textureAtlas.atlasHeight;
-	
+	// MODIFICAÇÃO INICIADA: Reescrever a lógica de geração de geometria e animação
+	hologramGeo["minecraft:geometry"][0]["description"]["texture_width"] = textureAtlas.atlasWidth;
+	hologramGeo["minecraft:geometry"][0]["description"]["texture_height"] = textureAtlas.atlasHeight;
+
+    // Adicionar um osso "template" para cada tipo de bloco na geometria estática
+    boneTemplatePalette.forEach((boneTemplate, paletteIndex) => {
+        const templateBoneName = `template_${paletteIndex}`;
+        let positionedBoneTemplate = blockGeoMaker.positionBoneTemplate(boneTemplate, [0, 0, 0]);
+        hologramGeo["minecraft:geometry"][0]["bones"].push({
+            "name": templateBoneName,
+            "parent": "hologram_root",
+            "pivot": [8, 0, -8],
+            "scale": 0.0, // Invisível por padrão
+            ...positionedBoneTemplate
+        });
+    });
+
 	let structureWMolang = arrayToMolang(structureSizes.map(structureSize => structureSize[0]), "v.hologram.structure_index");
 	let structureHMolang = arrayToMolang(structureSizes.map(structureSize => structureSize[1]), "v.hologram.structure_index");
 	let structureDMolang = arrayToMolang(structureSizes.map(structureSize => structureSize[2]), "v.hologram.structure_index");
@@ -224,249 +214,124 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 	let layerAnimationStates = hologramAnimationControllers["animation_controllers"]["controller.animation.armor_stand.hologram.layers"]["states"];
 	let topLayer = max(...structureSizes.map(structureSize => structureSize[1])) - 1;
 	layerAnimationStates["default"]["transitions"].push(
-		{
-			"l_0": `v.hologram.layer > -1 && v.hologram.layer != ${topLayer} && v.hologram.layer_mode == ${HOLOGRAM_LAYER_MODES.SINGLE}`
-		},
-		{
-			[`l_${topLayer}`]: `v.hologram.layer == ${topLayer} && v.hologram.layer_mode == ${HOLOGRAM_LAYER_MODES.SINGLE}`
-		}
+		{ "l_0": `v.hologram.layer > -1 && v.hologram.layer != ${topLayer} && v.hologram.layer_mode == ${HOLOGRAM_LAYER_MODES.SINGLE}` },
+		{ [`l_${topLayer}`]: `v.hologram.layer == ${topLayer} && v.hologram.layer_mode == ${HOLOGRAM_LAYER_MODES.SINGLE}` }
 	);
 	if(topLayer > 0) {
 		layerAnimationStates["default"]["transitions"].push(
-			{
-				"l_0-": `v.hologram.layer > -1 && v.hologram.layer != ${topLayer - 1} && v.hologram.layer_mode == ${HOLOGRAM_LAYER_MODES.ALL_BELOW}`
-			},
-			{
-				[`l_${topLayer - 1}-`]: `v.hologram.layer == ${topLayer - 1} && v.hologram.layer_mode == ${HOLOGRAM_LAYER_MODES.ALL_BELOW}`
-			}
+			{ "l_0-": `v.hologram.layer > -1 && v.hologram.layer != ${topLayer - 1} && v.hologram.layer_mode == ${HOLOGRAM_LAYER_MODES.ALL_BELOW}` },
+			{ [`l_${topLayer - 1}-`]: `v.hologram.layer == ${topLayer - 1} && v.hologram.layer_mode == ${HOLOGRAM_LAYER_MODES.ALL_BELOW}` }
 		);
 	}
 	let entityDescription = entityFile["minecraft:client_entity"]["description"];
-	
+    
+    // Configurar o render controller para usar a nova geometria única
+    hologramRenderControllers["render_controllers"]["controller.render.armor_stand.hologram"]["geometry"] = "Geometry.default";
+    entityDescription["geometry"]["default"] = "geometry.armor_stand.hologram";
+
 	let totalMaterialCountCalculated = 0;
 	let totalBlocksToValidateByStructure = [];
 	let totalBlocksToValidateByStructureByLayer = [];
 	let uniqueBlocksToValidate = new Set();
+	let structureAnimationFiles = [];
 	
 	let materialList = await new MaterialList(blockMetadata, itemMetadata);
 	allStructureIndicesByLayer.forEach((structureIndicesByLayer, structureI) => {
 		let structureSize = structureSizes[structureI];
-		let geoShortName = `hologram_${structureI}`;
-		let geoIdentifier = `geometry.armor_stand.hologram_${structureI}`;
-		let geo = structuredClone(structureGeoTemplate);
-		geo["description"]["identifier"] = geoIdentifier;
-		entityDescription["geometry"][geoShortName] = geoIdentifier;
-		hologramRenderControllers["render_controllers"]["controller.render.armor_stand.hologram"]["arrays"]["geometries"]["Array.geometries"].push(`Geometry.${geoShortName}`);
 		let blocksToValidate = [];
 		let blocksToValidateByLayer = [];
-		
-		let getSpawnAnimationDelay;
-		let animationTimingFunc;
-		let makeHologramSpawnAnimation;
-		let spawnAnimationAnimatedBones = [];
-		if(config.SPAWN_ANIMATION_ENABLED) {
-			let totalVolume = structureSize.reduce((a, b) => a * b);
-			let totalAnimationLength = 0;
-			getSpawnAnimationDelay = (x, y, z) => {
-				let randomness = 2 - 1.9 * exp(-0.005 * totalVolume); 
-				return config.SPAWN_ANIMATION_LENGTH * 0.25 * (structureSize[0] - x + y + structureSize[2] - z + Math.random() * randomness);
-			};
-			animationTimingFunc = x => 1 - (1 - x) ** 3;
-			makeHologramSpawnAnimation = (delay, bonePos) => {
-				let animationEnd = Number((delay + config.SPAWN_ANIMATION_LENGTH).toFixed(2));
-				totalAnimationLength = max(totalAnimationLength, animationEnd);
-				hologramAnimations["animations"]["animation.armor_stand.hologram.spawn"]["animation_length"] = totalAnimationLength;
-				let keyframes = [0, 0.2, 0.4, 0.6, 0.8, 1]; 
-				let positionOffset = [-bonePos[0] - 8, -bonePos[1], -bonePos[2] - 8];
-				let createAnimFromKeyframes = timingFunc => Object.fromEntries(keyframes.map(keyframe => [`${+(delay + keyframe * config.SPAWN_ANIMATION_LENGTH).toFixed(2)}`, timingFunc(keyframe)]));
-				return {
-					"scale": createAnimFromKeyframes(keyframe => (new Array(3)).fill(+animationTimingFunc(keyframe).toFixed(2))), 
-					"position": createAnimFromKeyframes(keyframe => positionOffset.map(x => +(x * (1 - animationTimingFunc(keyframe))).toFixed(2)))
-				};
-			};
-		}
+		let structureAnimation = {
+            "format_version": "1.8.0",
+            "animations": {
+                [`animation.hologram.structure_${structureI}`]: {
+                    "loop": true,
+                    "bones": {}
+                }
+            }
+        };
+        const structureAnimBones = structureAnimation.animations[`animation.hologram.structure_${structureI}`].bones;
+
 		for(let y = 0; y < structureSize[1]; y++) {
-			let layerName = `l_${y}`;
-			geo["bones"].push({
-				"name": layerName,
-				"parent": "hologram_offset_wrapper",
-				"pivot": [8, 0, -8]
-			});
-			layerAnimationStates[layerName] = {
-				"animations": [`hologram.l_${y}`],
-				"blend_transition": 0.1,
-				"blend_via_shortest_path": true,
-				"transitions": [
-					{
-						[y == topLayer? "default" : `${layerName}-`]: `v.hologram.layer_mode == ${HOLOGRAM_LAYER_MODES.ALL_BELOW}`
-					},
-					{
-						[y == 0? "default" : `l_${y - 1}`]: `v.hologram.layer < ${y}${y == topLayer? " && v.hologram.layer != -1" : ""}`
-					},
-					(y == topLayer? {
-						"default": "v.hologram.layer == -1"
-					} : {
-						[`l_${y + 1}`]: `v.hologram.layer > ${y}`
-					})
-				]
-			};
-			hologramAnimations["animations"][`animation.armor_stand.hologram.l_${y}`] ??= {};
-			let layerAnimation = hologramAnimations["animations"][`animation.armor_stand.hologram.l_${y}`];
-			layerAnimation["loop"] = "hold_on_last_frame";
-			layerAnimation["bones"] ??= {};
-			for(let otherLayerY = 0; otherLayerY < structureSize[1]; otherLayerY++) {
-				if(otherLayerY == y) {
-					continue;
-				}
-				layerAnimation["bones"][`l_${otherLayerY}`] = {
-					"scale": config.MINI_SCALE
-				};
-			}
-			if(Object.entries(layerAnimation["bones"]).length == 0) {
-				delete layerAnimation["bones"];
-			}
-			entityDescription["animations"][`hologram.l_${y}`] = `animation.armor_stand.hologram.l_${y}`;
-			if(y < topLayer) { 
-				layerAnimationStates[`${layerName}-`] = {
-					"animations": [`hologram.l_${y}-`],
-					"blend_transition": 0.1,
-					"blend_via_shortest_path": true,
-					"transitions": [
-						{
-							[layerName]: `v.hologram.layer_mode == ${HOLOGRAM_LAYER_MODES.SINGLE}`
-						},
-						{
-							[y == 0? "default" : `l_${y - 1}-`]: `v.hologram.layer < ${y}${y == topLayer - 1? " && v.hologram.layer != -1" : ""}`
-						},
-						(y >= topLayer - 1? {
-							"default": "v.hologram.layer == -1"
-						} : {
-							[`l_${y + 1}-`]: `v.hologram.layer > ${y}`
-						})
-					]
-				};
-				hologramAnimations["animations"][`animation.armor_stand.hologram.l_${y}-`] ??= {};
-				let layerAnimationAllBelow = hologramAnimations["animations"][`animation.armor_stand.hologram.l_${y}-`];
-				layerAnimationAllBelow["loop"] = "hold_on_last_frame";
-				layerAnimationAllBelow["bones"] ??= {};
-				for(let otherLayerY = 0; otherLayerY < structureSize[1]; otherLayerY++) {
-					if(otherLayerY <= y) {
-						continue;
-					}
-					layerAnimationAllBelow["bones"][`l_${otherLayerY}`] = {
-						"scale": config.MINI_SCALE
-					};
-				}
-				if(Object.entries(layerAnimationAllBelow["bones"]).length == 0) {
-					delete layerAnimationAllBelow["bones"];
-				}
-				entityDescription["animations"][`hologram.l_${y}-`] = `animation.armor_stand.hologram.l_${y}-`;
-			}
-			
 			let blocksToValidateCurrentLayer = 0; 
 			for(let x = 0; x < structureSize[0]; x++) {
 				for(let z = 0; z < structureSize[2]; z++) {
 					let blockI = (x * structureSize[1] + y) * structureSize[2] + z;
-					let firstBoneForThisCoordinate = true; 
 					structureIndicesByLayer.forEach((blockPaletteIndices, layerI) => {
 						let paletteI = blockPaletteIndices[blockI];
-						if(!(paletteI in boneTemplatePalette)) {
-							if(paletteI in blockPalette) {
-								console.error(`A bone template wasn't made for blockPalette[${paletteI}] = ${blockPalette[paletteI]["name"]}!`);
-							}
-							return;
-						}
-						let boneTemplate = boneTemplatePalette[paletteI];
+						if(!(paletteI in boneTemplatePalette)) return;
 						
-						let blockCoordinateName = `b_${x}_${y}_${z}`;
-						let boneName = blockCoordinateName;
-						if(!firstBoneForThisCoordinate) {
-							boneName += `_${layerI}`;
-						}
-						if(config.SPAWN_ANIMATION_ENABLED && structureI == 0 && structureFiles.length > 1) {
-							boneName += "_a"; 
-						}
-						let bonePos = [-16 * x - 8, 16 * y, 16 * z - 8]; 
-						let positionedBoneTemplate = blockGeoMaker.positionBoneTemplate(boneTemplate, bonePos);
-						let bonesToAdd = [{
-							"name": boneName,
-							"parent": layerName,
-							"pivot": bonePos.map(x => x + 8), 
-							...positionedBoneTemplate
-						}];
-						let rotWrapperBones = new JSONMap();
-						let extraRotCounter = 0;
-						bonesToAdd[0]["cubes"] = bonesToAdd[0]["cubes"].filter(cube => {
-							if("extra_rots" in cube) { 
-								let extraRots = cube["extra_rots"];
-								delete cube["extra_rots"];
-								if(!rotWrapperBones.has(extraRots)) { 
-									let wrapperBones = [];
-									let parentBoneName = boneName;
-									extraRots.forEach(extraRot => {
-										let wrapperBoneName = `${boneName}_rot_wrapper_${extraRotCounter++}`;
-										wrapperBones.push({
-											"name": wrapperBoneName,
-											"parent": parentBoneName,
-											"rotation": extraRot["rot"],
-											"pivot": extraRot["pivot"]
-										});
-										parentBoneName = wrapperBoneName;
-									});
-									bonesToAdd.push(...wrapperBones);
-									wrapperBones.at(-1)["cubes"] = [];
-									rotWrapperBones.set(extraRots, wrapperBones.at(-1));
-								}
-								rotWrapperBones.get(extraRots)["cubes"].push(cube);
-								return false;
-							} else {
-								return true;
-							}
-						});
-						geo["bones"].push(...bonesToAdd);
-						
-						if(firstBoneForThisCoordinate) { 
-							hologramGeo["minecraft:geometry"][2]["bones"][1]["locators"][blockCoordinateName] ??= bonePos.map(x => x + 8);
-						}
-						if(config.SPAWN_ANIMATION_ENABLED && structureI == 0) {
-							spawnAnimationAnimatedBones.push([boneName, getSpawnAnimationDelay(x, y, z), bonePos]);
-						}
-						
-						let block = blockPalette[paletteI];
-						if(!config.IGNORED_MATERIAL_LIST_BLOCKS.includes(block["name"])) {
-							materialList.add(block);
-						}
-						if(layerI == 0) { 
+						const templateBoneName = `template_${paletteI}`;
+                        const blockPosId = `p_${x}_${y}_${z}_${layerI}`; // Identificador único para a posição do bloco
+                        const blockCoordinateName = `b_${x}_${y}_${z}`; // Locator para validação
+
+                        // Adiciona um osso para este bloco na animação
+                        structureAnimBones[blockPosId] = {
+                            "position": [-16 * x, 16 * y, 16 * z],
+                            "scale": `(v.hologram.layer == -1 || v.hologram.layer_mode == ${HOLOGRAM_LAYER_MODES.ALL_BELOW} ? v.hologram.layer >= ${y} : v.hologram.layer == ${y}) ? 1.0 : ${config.MINI_SCALE}`
+                        };
+
+                        // Adiciona um osso correspondente na geometria se ainda não existir
+                        if (!hologramGeo["minecraft:geometry"][0]["bones"].some(b => b.name === blockPosId)) {
+                             hologramGeo["minecraft:geometry"][0]["bones"].push({
+                                "name": blockPosId,
+                                "parent": templateBoneName // O osso herda a geometria do template
+                            });
+                        }
+                        
+						if (layerI === 0) { // Contar apenas a camada base para validação e materiais
 							blocksToValidate.push({
-								"locator": blockCoordinateName,
-								"block": block["name"],
-								"pos": [x, y, z]
+								"locator": blockCoordinateName, "block": blockPalette[paletteI]["name"], "pos": [x, y, z]
 							});
+                            if (!config.IGNORED_MATERIAL_LIST_BLOCKS.includes(blockPalette[paletteI]["name"])) {
+							    materialList.add(blockPalette[paletteI]);
+                            }
 							blocksToValidateCurrentLayer++;
-							uniqueBlocksToValidate.add(block["name"]);
+							uniqueBlocksToValidate.add(blockPalette[paletteI]["name"]);
 						}
-						firstBoneForThisCoordinate = false;
 					});
 				}
 			}
 			blocksToValidateByLayer.push(blocksToValidateCurrentLayer);
 		}
-		hologramGeo["minecraft:geometry"].push(geo);
 		
-		if(config.SPAWN_ANIMATION_ENABLED && structureI == 0) {
-			let minDelay = arrayMin(spawnAnimationAnimatedBones.map(([, delay]) => delay));
-			spawnAnimationAnimatedBones.forEach(([boneName, delay, bonePos]) => {
-				delay -= minDelay - 0.05;
-				delay = Number(delay.toFixed(2));
-				hologramAnimations["animations"]["animation.armor_stand.hologram.spawn"]["bones"][boneName] = makeHologramSpawnAnimation(delay, bonePos);
-			});
-		}
-		
+        const particleAlignmentBone = hologramGeo["minecraft:geometry"][0].bones.find(b => b.name === 'particle_alignment');
+        blocksToValidate.forEach(b => {
+             particleAlignmentBone.locators[b.locator] = [8 - 16 * b.pos[0], 16 * b.pos[1], -8 + 16 * b.pos[2]];
+        });
+
+		// Adicionar animação da estrutura ao animation controller
+        const animName = `hologram.structure_${structureI}`;
+        const animControllerName = `controller.animation.armor_stand.hologram.structures`;
+        if (!hologramAnimationControllers.animation_controllers[animControllerName]) {
+            hologramAnimationControllers.animation_controllers[animControllerName] = {
+                "initial_state": "s_0", "states": { "s_0": { "transitions": [] } }
+            };
+            entityDescription.animations["controller.hologram.structures"] = animControllerName;
+            entityDescription.scripts.animate.push("controller.hologram.structures");
+        }
+        
+        const states = hologramAnimationControllers.animation_controllers[animControllerName].states;
+        const stateName = `s_${structureI}`;
+        states[stateName] = {
+            "animations": [animName],
+            "transitions": [{ [`s_${(structureI + 1) % allStructureIndicesByLayer.length}`]: `v.hologram.structure_index != ${structureI}`}]
+        };
+        if (structureI === 0) {
+           states["s_0"].transitions.push({[stateName]: `v.hologram.structure_index == ${structureI}`});
+        } else {
+            const prevState = states[`s_${structureI - 1}`] || states["s_0"];
+            prevState.transitions.push({ [stateName]: `v.hologram.structure_index == ${structureI}` });
+        }
+        
+        entityDescription.animations[animName] = `animation.hologram.structure_${structureI}`;
+        structureAnimationFiles.push([`animations/hologram.structure_${structureI}.json`, stringifyWithFixedDecimals(structureAnimation)]);
+
 		addBoundingBoxParticles(hologramAnimationControllers, structureI, structureSize);
 		addBlockValidationParticles(hologramAnimationControllers, structureI, blocksToValidate, structureSize);
 		totalBlocksToValidateByStructure.push(blocksToValidate.length);
 		totalBlocksToValidateByStructureByLayer.push(blocksToValidateByLayer);
 	});
+	// MODIFICAÇÃO FINALIZADA
 	
     totalMaterialCountCalculated = materialList.totalMaterialCount;
 
@@ -510,11 +375,12 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 		changeLayer: itemCriteriaToMolang(config.CONTROLS.CHANGE_LAYER),
 		decreaseLayer: itemCriteriaToMolang(config.CONTROLS.DECREASE_LAYER),
 		changeLayerMode: itemCriteriaToMolang(config.CONTROLS.CHANGE_LAYER_MODE),
+		moveHologram: itemCriteriaToMolang(config.CONTROLS.MOVE_HOLOGRAM),
 		rotateHologram: itemCriteriaToMolang(config.CONTROLS.ROTATE_HOLOGRAM),
-		disablePlayerControls: itemCriteriaToMolang(config.CONTROLS.DISABLE_PLAYER_CONTROLS),
+		changeStructure: itemCriteriaToMolang(config.CONTROLS.CHANGE_STRUCTURE),
 		backupHologram: itemCriteriaToMolang(config.CONTROLS.BACKUP_HOLOGRAM),
-		singleLayerMode: HOLOGRAM_LAYER_MODES.SINGLE,
-		ACTIONS: entityScripts.ACTIONS
+		ACTIONS: entityScripts.ACTIONS,
+        singleLayerMode: HOLOGRAM_LAYER_MODES.SINGLE
 	}));
 	entityDescription["geometry"]["hologram.wrong_block_overlay"] = "geometry.armor_stand.hologram.wrong_block_overlay";
 	entityDescription["geometry"]["hologram.valid_structure_overlay"] = "geometry.armor_stand.hologram.valid_structure_overlay";
@@ -528,8 +394,8 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 		"controller.render.armor_stand.hologram.valid_structure_overlay": "v.hologram.validating && v.wrong_blocks == 0"
 	}, "controller.render.armor_stand.hologram.particle_alignment");
 	entityDescription["particle_effects"] ??= {};
-	entityDescription["particle_effects"]["bounding_box_outline"] = "hololab:bounding_box_outline"; // HoloLab Customization
-	entityDescription["particle_effects"]["saving_backup"] = "hololab:saving_backup"; // HoloLab Customization
+	entityDescription["particle_effects"]["bounding_box_outline"] = "hololab:bounding_box_outline";
+	entityDescription["particle_effects"]["saving_backup"] = "hololab:saving_backup";
 	
 	textureBlobs.forEach(([textureName]) => {
 		entityDescription["textures"][textureName] = `textures/entity/${textureName}`;
@@ -548,7 +414,7 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 		
 	uniqueBlocksToValidate.forEach(blockName => {
 		let particleName = `validate_${blockName.replace(":", ".")}`;
-		entityDescription["particle_effects"][particleName] = `hololab:${particleName}`; // HoloLab Customization
+		entityDescription["particle_effects"][particleName] = `hololab:${particleName}`;
 	});
 	
     let playerRenderControllers;
@@ -605,7 +471,6 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 	}
 	
 	let finalManifest = structuredClone(manifestTemplate); 
-    // START HoloLab Customization Block
 	finalManifest["header"]["name"] = "pack.name";
     finalManifest["header"]["description"] = "pack.description";
 	finalManifest["header"]["uuid"] = crypto.randomUUID();
@@ -625,20 +490,9 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 
     finalManifest["settings"] = []; 
     finalManifest["settings"].push(
-        {
-            "type": "input",
-            "text": "§bTIK§dTOK:", 
-            "default": "https://www.tiktok.com/@guihjzzz?_t=ZM-8vawBdE0Ew2&_r=1",
-            "name": "tiktok" 
-        },
-        {
-            "type": "input",
-            "text": "Generated by §r§uDISCORD:", 
-            "default": "https://discord.gg/YTdKsTjnUy",
-            "name": "discord" 
-        }
+        { "type": "input", "text": "§bTIK§dTOK:", "default": "https://www.tiktok.com/@guihjzzz?_t=ZM-8vawBdE0Ew2&_r=1", "name": "tiktok" },
+        { "type": "input", "text": "Generated by §r§uDISCORD:", "default": "https://discord.gg/YTdKsTjnUy", "name": "discord" }
     );
-    // END HoloLab Customization Block
 	
 	let controlsHaveBeenCustomised = JSON.stringify(config.CONTROLS) != JSON.stringify(DEFAULT_PLAYER_CONTROLS);
 	let pmmpBedrockDataFetcher = config.RENAME_CONTROL_ITEMS || config.RETEXTURE_CONTROL_ITEMS? await createPmmpBedrockDataFetcher() : undefined;
@@ -654,13 +508,10 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 		"RENAME_CONTROL_ITEMS": "pack.description.renamed_control_items_disabled"
 	};
 
-    // START HoloLab Language File Processing
 	let processedLanguageFiles = await Promise.all(languagesDotJson.map(async languageCode => {
         let langFileContent = packageTemplateLangFiles[languageCode] || packageTemplateLangFiles["en_US"] || `pack.name=${packName}\npack.description=HoloLab Pack`;
-
 		langFileContent = langFileContent.replaceAll("{PACK_NAME}", packName);
 		langFileContent = langFileContent.replaceAll("{PACK_GENERATION_TIME}", packGenerationTime);
-        
         const INVISIBLE_CHAR = "\u200B"; 
         langFileContent = langFileContent.replaceAll("{TOTAL_MATERIAL_COUNT}", INVISIBLE_CHAR); 
         langFileContent = langFileContent.replaceAll("{MATERIAL_LIST}", INVISIBLE_CHAR);
@@ -706,14 +557,11 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 
 		langFileContent = langFileContent.replaceAll(/\t*#.+/g, "");
         langFileContent = langFileContent.replace(/^\s*[\r\n]/gm, "");
-
 		if(config.RENAME_CONTROL_ITEMS && controlItemTranslations && controlItemTranslations[languageCode]) {
 			langFileContent += "\n" + controlItemTranslations[languageCode];
 		}
-		
 		return [languageCode, langFileContent.trim()];
 	}));
-    // END HoloLab Language File Processing
 	
 	let hasModifiedTerrainTexture = false;
 	let controlItemTextures = [];
@@ -734,20 +582,14 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
                 return;
             }
 
-			let paddedTexture = await addPaddingToImage(controlTexture, { 
-				right: 16,
-				bottom: 16
-			});
+			let paddedTexture = await addPaddingToImage(controlTexture, { right: 16, bottom: 16 });
 			let controlItemTextureSizes = new Set();
 			let allItems = expandItemCriteria(itemCriteria, itemTags);
 			await Promise.all(allItems.map(async itemName => {
-				if(itemName in itemIcons) {
-					itemName = itemIcons[itemName];
-				} else {
+				if(itemName in itemIcons) { itemName = itemIcons[itemName]; } 
+                else {
 					let matchingPatternAndReplacement = itemIconPatterns.find(([pattern]) => pattern.test(itemName));
-					if(matchingPatternAndReplacement) {
-						itemName = itemName.replaceAll(...matchingPatternAndReplacement);
-					}
+					if(matchingPatternAndReplacement) { itemName = itemName.replaceAll(...matchingPatternAndReplacement); }
 				}
 				let variant = -1;
 				if(itemName.includes(".")) {
@@ -758,103 +600,54 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 				let usingTerrainAtlas = false;
 				let originalTexturePath = resourceItemTexture["texture_data"][itemName]?.["textures"];
 				if(originalTexturePath) {
-					if(Array.isArray(originalTexturePath)) {
-						if(originalTexturePath.length == 1) {
-							variant = 0;
-						}
-					}
+					if(Array.isArray(originalTexturePath)) { if(originalTexturePath.length == 1) { variant = 0; } }
 				} else if(itemName in textureAtlas.blocksDotJson) {
-					if(typeof textureAtlas.blocksDotJson[itemName]["carried_textures"] == "string" && 
-                       textureAtlas.terrainTexture["texture_data"][textureAtlas.blocksDotJson[itemName]["carried_textures"]]?.["textures"]?.startsWith?.("textures/items/")) {
+					if(typeof textureAtlas.blocksDotJson[itemName]["carried_textures"] == "string" && textureAtlas.terrainTexture["texture_data"][textureAtlas.blocksDotJson[itemName]["carried_textures"]]?.["textures"]?.startsWith?.("textures/items/")) {
 						hasModifiedTerrainTexture = true;
 						usingTerrainAtlas = true;
 						originalTexturePath = textureAtlas.terrainTexture["texture_data"][textureAtlas.blocksDotJson[itemName]["carried_textures"]]["textures"];
 						itemName = textureAtlas.blocksDotJson[itemName]["carried_textures"];
-					} else {
-						return;
-					}
+					} else { return; }
 				} else {
 					loadingLegacyItemMappingsPromise ??= new Promise(async (res, rej) => {
 						try {
-                            if(!pmmpBedrockDataFetcher) {
-                                console.error("pmmpBedrockDataFetcher not initialized for legacy item mappings.");
-                                return rej("pmmpBedrockDataFetcher not initialized");
-                            }
+                            if(!pmmpBedrockDataFetcher) { console.error("pmmpBedrockDataFetcher not initialized for legacy item mappings."); return rej("pmmpBedrockDataFetcher not initialized"); }
 							legacyItemMappings = new Map();
 							let updateMappings = await pmmpBedrockDataFetcher.fetch("r16_to_current_item_map.json").then(res => res.json());
-							Object.entries(updateMappings["simple"]).forEach(([oldName, newName]) => {
-								legacyItemMappings.set(newName.slice(10), [oldName.slice(10), -1]); 
-							});
-							Object.entries(updateMappings["complex"]).forEach(([oldName, newNames]) => { 
-								Object.entries(newNames).forEach(([index, newName]) => {
-									legacyItemMappings.set(newName.slice(10), [oldName.slice(10), index]);
-								});
-							});
+							Object.entries(updateMappings["simple"]).forEach(([oldName, newName]) => { legacyItemMappings.set(newName.slice(10), [oldName.slice(10), -1]); });
+							Object.entries(updateMappings["complex"]).forEach(([oldName, newNames]) => { Object.entries(newNames).forEach(([index, newName]) => { legacyItemMappings.set(newName.slice(10), [oldName.slice(10), index]); }); });
 							res();
-						} catch(e) {
-							rej(e);
-						}
+						} catch(e) { rej(e); }
 					});
-					try {
-						await loadingLegacyItemMappingsPromise;
-					} catch(e) {
-						console.error("Somehow failed loading legacy item mappings. Please report this on GitHub!", e);
-						return;
-					}
-					if(!legacyItemMappings || !legacyItemMappings.has(itemName)) {
-						return;
-					}
+					try { await loadingLegacyItemMappingsPromise; } catch(e) { console.error("Somehow failed loading legacy item mappings. Please report this on GitHub!", e); return; }
+					if(!legacyItemMappings || !legacyItemMappings.has(itemName)) { return; }
 					let [oldItemName, legacyVariant] = legacyItemMappings.get(itemName);
 					variant = legacyVariant;
 					originalTexturePath = resourceItemTexture["texture_data"][oldItemName]?.["textures"];
-					if(!originalTexturePath) {
-						return;
-					}
+					if(!originalTexturePath) { return; }
 					itemName = oldItemName; 
 				}
 				
 				if(Array.isArray(originalTexturePath)) { 
-					if(variant == -1) {
-						return;
-					}
-					if(!(variant in originalTexturePath)) {
-						console.error(`Item texture variant ${variant} for ${itemName} does not exist!`);
-						return;
-					}
+					if(variant == -1) { return; }
+					if(!(variant in originalTexturePath)) { console.error(`Item texture variant ${variant} for ${itemName} does not exist!`); return; }
                     itemTexture["texture_data"][itemName] ??= { "textures": [] };
-					if(!Array.isArray(itemTexture["texture_data"][itemName]["textures"])){
-						itemTexture["texture_data"][itemName]["textures"] = [itemTexture["texture_data"][itemName]["textures"]];
-					}
-                    while(itemTexture["texture_data"][itemName]["textures"].length <= variant) {
-                         itemTexture["texture_data"][itemName]["textures"].push(null);
-                    }
+					if(!Array.isArray(itemTexture["texture_data"][itemName]["textures"])){ itemTexture["texture_data"][itemName]["textures"] = [itemTexture["texture_data"][itemName]["textures"]]; }
+                    while(itemTexture["texture_data"][itemName]["textures"].length <= variant) { itemTexture["texture_data"][itemName]["textures"].push(null); }
 
 					let specificOriginalTexturePath = `${originalTexturePath[variant]}.png`;
 					let originalImage;
-					try {
-						originalImage = await resourcePackStack.fetchResource(specificOriginalTexturePath).then(res => res.toImage());
-					} catch(e) {
-						console.warn(`Failed to load texture ${specificOriginalTexturePath} for control item retexturing!`);
-						return;
-					}
+					try { originalImage = await resourcePackStack.fetchResource(specificOriginalTexturePath).then(res => res.toImage()); } catch(e) { console.warn(`Failed to load texture ${specificOriginalTexturePath} for control item retexturing!`); return; }
 					let overlayedImageBlob = await overlaySquareImages(originalImage, paddedTexture);
 					let newTexturePath = `${originalTexturePath[variant].replace(/^textures\/items\//, "")}_${control.toLowerCase()}.png`;
 					controlItemTextures.push([`textures/items/${newTexturePath}`, overlayedImageBlob]);
 					itemTexture["texture_data"][itemName]["textures"][variant] = `textures/items/${newTexturePath.slice(0, -4)}`;
 				} else {
 					let itemTextureSize = 16;
-					if(resourcePackStack.hasResourcePacks) {
-						try {
-							let originalImage = await resourcePackStack.fetchResource(`${originalTexturePath}.png`).then(res => res.toImage());
-							itemTextureSize = originalImage.width;
-						} catch(e) { }
-					}
+					if(resourcePackStack.hasResourcePacks) { try { let originalImage = await resourcePackStack.fetchResource(`${originalTexturePath}.png`).then(res => res.toImage()); itemTextureSize = originalImage.width; } catch(e) { } }
 					let safeSize = lcm(paddedTexture.width, itemTextureSize) * config.CONTROL_ITEM_TEXTURE_SCALE; 
 					controlItemTextureSizes.add(safeSize);
-					(usingTerrainAtlas? terrainTexture : itemTexture)["texture_data"][itemName] = {
-						"textures": [originalTexturePath, `textures/items/~${control.toLowerCase()}_${safeSize}`],
-						"additive": true 
-					};
+					(usingTerrainAtlas? terrainTexture : itemTexture)["texture_data"][itemName] = { "textures": [originalTexturePath, `textures/items/~${control.toLowerCase()}_${safeSize}`], "additive": true };
 				}
 			}));
 			await Promise.all([...controlItemTextureSizes].map(async size => {
@@ -886,6 +679,7 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 	}
 
 	packFiles.push(["models/entity/armor_stand.hologram.geo.json", stringifyWithFixedDecimals(hologramGeo)]);
+    packFiles.push(...structureAnimationFiles); // Adicionar os novos arquivos de animação
 	packFiles.push(["materials/entity.material", JSON.stringify(hologramMaterial)]);
 	packFiles.push(["animation_controllers/armor_stand.hologram.animation_controllers.json", JSON.stringify(hologramAnimationControllers)]);
 	packFiles.push(["particles/bounding_box_outline.json", JSON.stringify(boundingBoxOutlineParticle)]);
@@ -924,10 +718,7 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 	});
 	
 	await Promise.all(packFiles.map(([fileName, fileContents, comment]) => {
-		let options = {
-			comment,
-			level: config.COMPRESSION_LEVEL
-		};
+		let options = { comment, level: config.COMPRESSION_LEVEL };
 		if(fileContents instanceof Blob) {
 			return packZip.add(fileName, new BlobReader(fileContents), options);
 		} else {
@@ -940,9 +731,7 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 	
 	if(previewCont) {
 		let showPreview = () => {
-			hologramGeo["minecraft:geometry"].filter(geo => geo["description"]["identifier"].startsWith("geometry.armor_stand.hologram_")).map(geo => {
-				(new PreviewRenderer(previewCont, textureAtlas, geo, hologramAnimations, config.SHOW_PREVIEW_SKYBOX)).catch(e => console.error("Preview renderer error:", e)); 
-			});
+			(new PreviewRenderer(previewCont, textureAtlas, hologramGeo, { ...hologramAnimations, ...Object.fromEntries(structureAnimationFiles.map(([path, content])=> [path, JSON.parse(content)])) }, config.SHOW_PREVIEW_SKYBOX)).catch(e => console.error("Preview renderer error:", e)); 
 		};
         let totalBlockCountForPreview = allStructureIndicesByLayer.reduce((sum, structureIndices) => {
             return sum + structureIndices.flat().filter(paletteIndex => {
@@ -957,23 +746,15 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 			message.classList.add("previewMessage", "clickToView");
 			let p = document.createElement("p");
 			p.dataset.translationSubTotalBlockCount = totalBlockCountForPreview.toString();
-			if(structureFiles.length == 1) {
-				p.dataset.translate = "preview.click_to_view";
-			} else {
-				p.dataset.translate = "preview.click_to_view_multiple";
-			}
+			if(structureFiles.length == 1) { p.dataset.translate = "preview.click_to_view"; } 
+            else { p.dataset.translate = "preview.click_to_view_multiple"; }
 			message.appendChild(p);
-			message.addEventListener("click", () => {
-				message.remove();
-				showPreview();
-			});
+			message.addEventListener("click", () => { message.remove(); showPreview(); });
 			previewCont.appendChild(message);
 		}
 	}
 	
-	return new File([zippedPack], `${packName}.hololab.mcpack`, { // HoloLab Customization
-		type: "application/mcpack"
-	});
+	return new File([zippedPack], `${packName}.hololab.mcpack`, { type: "application/mcpack" });
 }
 /**
  * Retrieves the structure files from a completed HoloLab resource pack.
@@ -1316,25 +1097,14 @@ function addBoundingBoxParticles(hologramAnimationControllers, structureI, struc
 		`v.size = ${structureSize[2] / 2}; v.dir = 2; v.x = ${structureSize[0]}; v.y = ${structureSize[1]}; v.r = 1; v.g = 1; v.b = 1;`
 	];
 	let boundingBoxAnimation = {
-		"particle_effects": [],
-		"transitions": [
-			{
-				"hidden": `!v.hologram.rendering || v.hologram.structure_index != ${structureI}`
-			}
-		]
+		"particle_effects": [], "transitions": [{ "hidden": `!v.hologram.rendering || v.hologram.structure_index != ${structureI}` }]
 	};
 	outlineParticleSettings.forEach(particleMolang => {
-		boundingBoxAnimation["particle_effects"].push({
-			"effect": "bounding_box_outline",
-			"locator": "hologram_root",
-			"pre_effect_script": particleMolang.replaceAll(/\s/g, "")
-		});
+		boundingBoxAnimation["particle_effects"].push({ "effect": "bounding_box_outline", "locator": "hologram_root", "pre_effect_script": particleMolang.replaceAll(/\s/g, "") });
 	});
 	let animationStateName = `visible_${structureI}`;
 	hologramAnimationControllers["animation_controllers"]["controller.animation.armor_stand.hologram.bounding_box"]["states"][animationStateName] = boundingBoxAnimation;
-	hologramAnimationControllers["animation_controllers"]["controller.animation.armor_stand.hologram.bounding_box"]["states"]["hidden"]["transitions"].push({
-		[animationStateName]: `v.hologram.rendering && v.hologram.structure_index == ${structureI}`
-	});
+	hologramAnimationControllers["animation_controllers"]["controller.animation.armor_stand.hologram.bounding_box"]["states"]["hidden"]["transitions"].push({ [animationStateName]: `v.hologram.rendering && v.hologram.structure_index == ${structureI}` });
 }
 /**
  * Adds block validation particles for a single structure to the hologram animation controllers in-place.
@@ -1344,67 +1114,30 @@ function addBoundingBoxParticles(hologramAnimationControllers, structureI, struc
  * @param {Vec3} structureSize
  */
 function addBlockValidationParticles(hologramAnimationControllers, structureI, blocksToValidate, structureSize) {
-	let validateAllState = {
-		"particle_effects": [],
-		"transitions": [
-			{
-				"default": "!v.hologram.validating" 
-			}
-		]
-	};
+	let validateAllState = { "particle_effects": [], "transitions": [{ "default": "!v.hologram.validating" }] };
 	let validateAllStateName = `validate_${structureI}`;
 	let validationStates = hologramAnimationControllers["animation_controllers"]["controller.animation.armor_stand.hologram.block_validation"]["states"];
 	validationStates[validateAllStateName] = validateAllState;
-	let validateAllStateTransition = {
-		[validateAllStateName]: `v.hologram.validating && v.hologram.structure_index == ${structureI} && v.hologram.layer == -1`
-	};
+	let validateAllStateTransition = { [validateAllStateName]: `v.hologram.validating && v.hologram.structure_index == ${structureI} && v.hologram.layer == -1` };
 	validationStates["default"]["transitions"].push(validateAllStateTransition);
 	let layersWithBlocksToValidate = [];
 	blocksToValidate.forEach(blockToValidate => {
 		let [x, y, z] = blockToValidate["pos"];
 		let animationStateName = `validate_${structureI}_l_${y}`;
 		if(!(animationStateName in validationStates)) {
-			let layerAnimationState = {
-				"particle_effects": [],
-				"transitions": [
-					{
-						"default": "!v.hologram.validating"
-					},
-					validateAllStateTransition
-				]
-			};
-			layersWithBlocksToValidate.forEach(layerY => { 
-				layerAnimationState["transitions"].push({
-					[`validate_${structureI}_l_${layerY}`]: `v.hologram.validating && v.hologram.structure_index == ${structureI} && v.hologram.layer == ${layerY}`
-				});
-			});
-			Object.values(validationStates).forEach(state => { 
-				state["transitions"].push({
-					[animationStateName]: `v.hologram.validating && v.hologram.structure_index == ${structureI} && v.hologram.layer == ${y}`
-				});
-			});
+			let layerAnimationState = { "particle_effects": [], "transitions": [{ "default": "!v.hologram.validating" }, validateAllStateTransition] };
+			layersWithBlocksToValidate.forEach(layerY => { layerAnimationState["transitions"].push({ [`validate_${structureI}_l_${layerY}`]: `v.hologram.validating && v.hologram.structure_index == ${structureI} && v.hologram.layer == ${layerY}` }); });
+			Object.values(validationStates).forEach(state => { state["transitions"].push({ [animationStateName]: `v.hologram.validating && v.hologram.structure_index == ${structureI} && v.hologram.layer == ${y}` }); });
 			validationStates[animationStateName] = layerAnimationState;
 			layersWithBlocksToValidate.push(y);
 		}
-		let particleEffect = {
-			"effect": `hololab:validate_${blockToValidate["block"].replace(":", ".")}`, 
-			"locator": blockToValidate["locator"],
-			"pre_effect_script": `
-				v.x = ${x};
-				v.y = ${y};
-				v.z = ${z};
-			`.replaceAll(/\s/g, "") 
-		};
+		let particleEffect = { "effect": `hololab:validate_${blockToValidate["block"].replace(":", ".")}`, "locator": blockToValidate["locator"], "pre_effect_script": `v.x = ${x}; v.y = ${y}; v.z = ${z};`.replaceAll(/\s/g, "") };
 		validateAllState["particle_effects"].push(particleEffect);
 		validationStates[animationStateName]["particle_effects"].push(particleEffect);
 	});
 	for(let y = 0; y < structureSize[1]; y++) { 
 		if(!layersWithBlocksToValidate.includes(y)) {
-			Object.entries(validationStates).forEach(([validationStateName, validationState]) => {
-				if(validationStateName.startsWith(`validate_${structureI}`)) {
-					validationState["transitions"][0]["default"] += ` || v.hologram.layer == ${y}`;
-				}
-			});
+			Object.entries(validationStates).forEach(([validationStateName, validationState]) => { if(validationStateName.startsWith(`validate_${structureI}`)) { validationState["transitions"][0]["default"] += ` || v.hologram.layer == ${y}`; } });
 		}
 	}
 }
@@ -1429,7 +1162,8 @@ function addPlayerControlsToRenderControllers(config, defaultPlayerRenderControl
 		rotateHologram: itemCriteriaToMolang(config.CONTROLS.ROTATE_HOLOGRAM),
 		changeStructure: itemCriteriaToMolang(config.CONTROLS.CHANGE_STRUCTURE),
 		backupHologram: itemCriteriaToMolang(config.CONTROLS.BACKUP_HOLOGRAM),
-		ACTIONS: entityScripts.ACTIONS
+		ACTIONS: entityScripts.ACTIONS,
+        disablePlayerControls: itemCriteriaToMolang(config.CONTROLS.DISABLE_PLAYER_CONTROLS)
 	});
 	let broadcastActions = functionToMolang(entityScripts.playerBroadcastActions, {
 		backupSlotCount: config.BACKUP_SLOT_COUNT
@@ -1778,7 +1512,6 @@ function stringifyWithFixedDecimals(value) {
 }
 
 // Type definitions (HoloPrintConfig, ItemCriteria, Block, etc.)
-// ... (mantidas como no original)
 /**
  * An object for storing HoloPrint config options.
  * @typedef {Object} HoloPrintConfig
