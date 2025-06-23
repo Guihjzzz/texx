@@ -185,11 +185,9 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 		});
 	});
 	
-	// MODIFICAÇÃO INICIADA: Reescrever a lógica de geração de geometria e animação
 	hologramGeo["minecraft:geometry"][0]["description"]["texture_width"] = textureAtlas.atlasWidth;
 	hologramGeo["minecraft:geometry"][0]["description"]["texture_height"] = textureAtlas.atlasHeight;
 
-    // Adicionar um osso "template" para cada tipo de bloco na geometria estática
     boneTemplatePalette.forEach((boneTemplate, paletteIndex) => {
         const templateBoneName = `template_${paletteIndex}`;
         let positionedBoneTemplate = blockGeoMaker.positionBoneTemplate(boneTemplate, [0, 0, 0]);
@@ -197,7 +195,7 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
             "name": templateBoneName,
             "parent": "hologram_root",
             "pivot": [8, 0, -8],
-            "scale": 0.0, // Invisível por padrão
+            "scale": 0.0,
             ...positionedBoneTemplate
         });
     });
@@ -225,7 +223,6 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 	}
 	let entityDescription = entityFile["minecraft:client_entity"]["description"];
     
-    // Configurar o render controller para usar a nova geometria única
     hologramRenderControllers["render_controllers"]["controller.render.armor_stand.hologram"]["geometry"] = "Geometry.default";
     entityDescription["geometry"]["default"] = "geometry.armor_stand.hologram";
 
@@ -261,27 +258,20 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 						if(!(paletteI in boneTemplatePalette)) return;
 						
 						const templateBoneName = `template_${paletteI}`;
-                        const blockPosId = `p_${x}_${y}_${z}_${layerI}`; // Identificador único para a posição do bloco
-                        const blockCoordinateName = `b_${x}_${y}_${z}`; // Locator para validação
+                        const blockPosId = `p_${x}_${y}_${z}_${layerI}`;
+                        const blockCoordinateName = `b_${x}_${y}_${z}`;
 
-                        // Adiciona um osso para este bloco na animação
                         structureAnimBones[blockPosId] = {
                             "position": [-16 * x, 16 * y, 16 * z],
                             "scale": `(v.hologram.layer == -1 || v.hologram.layer_mode == ${HOLOGRAM_LAYER_MODES.ALL_BELOW} ? v.hologram.layer >= ${y} : v.hologram.layer == ${y}) ? 1.0 : ${config.MINI_SCALE}`
                         };
 
-                        // Adiciona um osso correspondente na geometria se ainda não existir
                         if (!hologramGeo["minecraft:geometry"][0]["bones"].some(b => b.name === blockPosId)) {
-                             hologramGeo["minecraft:geometry"][0]["bones"].push({
-                                "name": blockPosId,
-                                "parent": templateBoneName // O osso herda a geometria do template
-                            });
+                             hologramGeo["minecraft:geometry"][0]["bones"].push({ "name": blockPosId, "parent": templateBoneName });
                         }
                         
-						if (layerI === 0) { // Contar apenas a camada base para validação e materiais
-							blocksToValidate.push({
-								"locator": blockCoordinateName, "block": blockPalette[paletteI]["name"], "pos": [x, y, z]
-							});
+						if (layerI === 0) {
+							blocksToValidate.push({ "locator": blockCoordinateName, "block": blockPalette[paletteI]["name"], "pos": [x, y, z] });
                             if (!config.IGNORED_MATERIAL_LIST_BLOCKS.includes(blockPalette[paletteI]["name"])) {
 							    materialList.add(blockPalette[paletteI]);
                             }
@@ -299,13 +289,10 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
              particleAlignmentBone.locators[b.locator] = [8 - 16 * b.pos[0], 16 * b.pos[1], -8 + 16 * b.pos[2]];
         });
 
-		// Adicionar animação da estrutura ao animation controller
         const animName = `hologram.structure_${structureI}`;
         const animControllerName = `controller.animation.armor_stand.hologram.structures`;
         if (!hologramAnimationControllers.animation_controllers[animControllerName]) {
-            hologramAnimationControllers.animation_controllers[animControllerName] = {
-                "initial_state": "s_0", "states": { "s_0": { "transitions": [] } }
-            };
+            hologramAnimationControllers.animation_controllers[animControllerName] = { "initial_state": "s_0", "states": { "s_0": { "transitions": [] } } };
             entityDescription.animations["controller.hologram.structures"] = animControllerName;
             entityDescription.scripts.animate.push("controller.hologram.structures");
         }
@@ -331,7 +318,6 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 		totalBlocksToValidateByStructure.push(blocksToValidate.length);
 		totalBlocksToValidateByStructureByLayer.push(blocksToValidateByLayer);
 	});
-	// MODIFICAÇÃO FINALIZADA
 	
     totalMaterialCountCalculated = materialList.totalMaterialCount;
 
@@ -379,6 +365,7 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 		rotateHologram: itemCriteriaToMolang(config.CONTROLS.ROTATE_HOLOGRAM),
 		changeStructure: itemCriteriaToMolang(config.CONTROLS.CHANGE_STRUCTURE),
 		backupHologram: itemCriteriaToMolang(config.CONTROLS.BACKUP_HOLOGRAM),
+		disablePlayerControls: itemCriteriaToMolang(config.CONTROLS.DISABLE_PLAYER_CONTROLS),
 		ACTIONS: entityScripts.ACTIONS,
         singleLayerMode: HOLOGRAM_LAYER_MODES.SINGLE
 	}));
@@ -679,14 +666,14 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 	}
 
 	packFiles.push(["models/entity/armor_stand.hologram.geo.json", stringifyWithFixedDecimals(hologramGeo)]);
-    packFiles.push(...structureAnimationFiles); // Adicionar os novos arquivos de animação
+    packFiles.push(...structureAnimationFiles);
 	packFiles.push(["materials/entity.material", JSON.stringify(hologramMaterial)]);
 	packFiles.push(["animation_controllers/armor_stand.hologram.animation_controllers.json", JSON.stringify(hologramAnimationControllers)]);
 	packFiles.push(["particles/bounding_box_outline.json", JSON.stringify(boundingBoxOutlineParticle)]);
 	uniqueBlocksToValidate.forEach(blockName => {
 		let particleName = `validate_${blockName.replace(":", ".")}`; 
 		let particle = structuredClone(blockValidationParticle);
-		particle["particle_effect"]["description"]["identifier"] = `hololab:${particleName}`; // HoloLab Customization
+		particle["particle_effect"]["description"]["identifier"] = `hololab:${particleName}`;
 		particle["particle_effect"]["components"]["minecraft:particle_expire_if_in_blocks"] = [blockName.includes(":")? blockName : `minecraft:${blockName}`]; 
 		packFiles.push([`particles/${particleName}.json`, JSON.stringify(particle)]);
 	});
@@ -1162,8 +1149,9 @@ function addPlayerControlsToRenderControllers(config, defaultPlayerRenderControl
 		rotateHologram: itemCriteriaToMolang(config.CONTROLS.ROTATE_HOLOGRAM),
 		changeStructure: itemCriteriaToMolang(config.CONTROLS.CHANGE_STRUCTURE),
 		backupHologram: itemCriteriaToMolang(config.CONTROLS.BACKUP_HOLOGRAM),
-		ACTIONS: entityScripts.ACTIONS,
-        disablePlayerControls: itemCriteriaToMolang(config.CONTROLS.DISABLE_PLAYER_CONTROLS)
+        // CORREÇÃO: Adicionada a variável que faltava
+		disablePlayerControls: itemCriteriaToMolang(config.CONTROLS.DISABLE_PLAYER_CONTROLS),
+		ACTIONS: entityScripts.ACTIONS
 	});
 	let broadcastActions = functionToMolang(entityScripts.playerBroadcastActions, {
 		backupSlotCount: config.BACKUP_SLOT_COUNT
@@ -1679,7 +1667,7 @@ function stringifyWithFixedDecimals(value) {
  * @property {Record<String, String>} [renamedIds] - Mapping of renamed IDs.
  * @property {Record<String, Record<String, TypedBlockStateProperty>>} [addedProperties] - Mapping of added properties.
  * @property {Record<String, Record<String, String>>} [renamedProperties] - Mapping of renamed properties.
- * @property {Record<String, Array<String>>} [removedProperties] - Mapping of removed properties.
+ * @property {Array<String>} [removedProperties] - Mapping of removed properties.
  * @property {Record<String, Record<String, String>>} [remappedPropertyValues] - Mapping of remapped property values.
  * @property {Record<String, Array<{ old: TypedBlockStateProperty, new: TypedBlockStateProperty }>>} [remappedPropertyValuesIndex] - Index of remapped property values.
  * @property {Record<String, BlockUpdateSchemaFlattenRule>} [flattenedProperties] - Mapping of flattened properties.
