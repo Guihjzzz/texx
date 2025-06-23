@@ -1,26 +1,20 @@
 {
-"format_version": "1.12.0",
-"minecraft:geometry": [
-{
-"description": {
-"identifier": "geometry.armor_stand.hologram",
-"texture_width": 16,
-"texture_height": 16,
-"visible_bounds_width": 512,
-"visible_bounds_height": 512,
-"visible_bounds_offset": [0, 1.5, 0]
-},
-"bones": [
-{
-"name": "hologram_root",
-"pivot": [8, 0, -8]
-},
-{
-"name": "hologram_offset_wrapper",
-"parent": "hologram_root",
-"pivot": [8, 0, -8]
-}
-]
-}
-]
+	"format_version": "1.16.0",
+	"minecraft:geometry": [
+		{
+			"description": {
+				"identifier": "geometry.armor_stand.hologram",
+				"texture_width": 256,
+				"texture_height": 256,
+				"visible_bounds_width": 512,
+				"visible_bounds_height": 512,
+				"visible_bounds_offset": [0, 1.5, 0]
+			},
+			"bones": [
+				{ "name": "hologram_root", "pivot": [8, 0, -8] },
+				{ "name": "hologram_offset_wrapper", "parent": "hologram_root", "pivot": [8, 0, -8] },
+				{ "name": "particle_alignment", "parent": "hologram_root", "locators": {} }
+			]
+		}
+	]
 }
