@@ -1,4 +1,4 @@
-// START OF MERGED AND OPTIMIZED HoloPrint.js (HoloLab Version) - High-Performance Rewrite
+// START OF MERGED AND OPTIMIZED HoloPrint.js (HoloLab Version) - High-Performance Rewrite v3
 
 import * as NBT from "nbtify";
 import { ZipWriter, TextReader, BlobWriter, BlobReader, ZipReader } from "@zip.js/zip.js";
@@ -46,11 +46,11 @@ export const DEFAULT_PLAYER_CONTROLS = {
 };
 
 const HOLOGRAM_LAYER_MODES = createNumericEnum(["SINGLE", "ALL_BELOW"]);
-const FIXED_PACK_ICON_PATH = "guihjzzz.png"; // HoloLab Customization
-const HOLOLAB_VERSION_STRING = "HoloLab dev"; // HoloLab Customization
+const FIXED_PACK_ICON_PATH = "guihjzzz.png"; 
+const HOLOLAB_VERSION_STRING = "HoloLab dev"; 
 
 export async function makePack(structureFiles, config = {}, resourcePackStack, previewCont) {
-	console.info(`Running HoloLab (based on HoloPrint ${VERSION})`); // HoloLab Customization
+	console.info(`Running HoloLab (based on HoloPrint ${VERSION})`); 
 	if(!resourcePackStack) {
 		console.debug("Waiting for resource pack stack initialisation...");
 		resourcePackStack = await new ResourcePackStack();
@@ -128,12 +128,7 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 	
     let { blockMetadata, itemMetadata } = loadedStuff.data;
 
-    let packageTemplateLangFiles = {
-        "en_US": en_US_lang_pack_template,
-        "pt_BR": pt_BR_lang_pack_template,
-        "zh_CN": zh_CN_lang_pack_template
-    };
-
+    let packageTemplateLangFiles = { "en_US": en_US_lang_pack_template, "pt_BR": pt_BR_lang_pack_template, "zh_CN": zh_CN_lang_pack_template };
     let fullResourceLangFiles = {};
     for (const langCode of languagesDotJson) {
         try {
@@ -142,7 +137,7 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
                 return res.text();
             });
         } catch (e) {
-            console.warn(`Could not load full .lang file for ${langCode} from resource stack. Material list and controls for this language might be incomplete or use fallbacks. Error: ${e.message}`);
+            console.warn(`Could not load full .lang file for ${langCode} from resource stack. Error: ${e.message}`);
             fullResourceLangFiles[langCode] = packageTemplateLangFiles[langCode] || packageTemplateLangFiles["en_US"] || "title.language=English\n";
         }
     }
@@ -159,8 +154,7 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 	let boneTemplatePalette = blockPalette.map(block => blockGeoMaker.makeBoneTemplate(block));
 	
 	let textureAtlas = await new TextureAtlas(config, resourcePackStack);
-	let textureRefs = [...blockGeoMaker.textureRefs];
-	await textureAtlas.makeAtlas(textureRefs); 
+	await textureAtlas.makeAtlas([...blockGeoMaker.textureRefs]); 
 	let textureBlobs = textureAtlas.imageBlobs;
 	let defaultTextureIndex = max(textureBlobs.length - 3, 0); 
 	
@@ -182,6 +176,8 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 		});
 	});
 	
+	//===[ START OF REWRITTEN GEOMETRY & ANIMATION LOGIC ]===//
+
 	hologramGeo["minecraft:geometry"][0]["description"]["texture_width"] = textureAtlas.atlasWidth;
 	hologramGeo["minecraft:geometry"][0]["description"]["texture_height"] = textureAtlas.atlasHeight;
 
@@ -193,33 +189,18 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
         });
     });
 
-	let structureWMolang = arrayToMolang(structureSizes.map(structureSize => structureSize[0]), "v.hologram.structure_index");
-	let structureHMolang = arrayToMolang(structureSizes.map(structureSize => structureSize[1]), "v.hologram.structure_index");
-	let structureDMolang = arrayToMolang(structureSizes.map(structureSize => structureSize[2]), "v.hologram.structure_index");
+	let structureWMolang = arrayToMolang(structureSizes.map(s => s[0]), "v.hologram.structure_index");
+	let structureHMolang = arrayToMolang(structureSizes.map(s => s[1]), "v.hologram.structure_index");
+	let structureDMolang = arrayToMolang(structureSizes.map(s => s[2]), "v.hologram.structure_index");
 	
 	if(!config.SPAWN_ANIMATION_ENABLED) {
-		delete hologramAnimations["animations"]["animation.armor_stand.hologram.spawn"]["loop"];
-		delete hologramAnimations["animations"]["animation.armor_stand.hologram.spawn"]["bones"];
+		delete hologramAnimations["animations"]["animation.armor_stand.hologram.spawn"];
 	}
 	
-	let layerAnimationStates = hologramAnimationControllers["animation_controllers"]["controller.animation.armor_stand.hologram.layers"]["states"];
-	let topLayer = max(...structureSizes.map(structureSize => structureSize[1])) - 1;
-	layerAnimationStates["default"]["transitions"].push(
-		{ "l_0": `v.hologram.layer > -1 && v.hologram.layer != ${topLayer} && v.hologram.layer_mode == ${HOLOGRAM_LAYER_MODES.SINGLE}` },
-		{ [`l_${topLayer}`]: `v.hologram.layer == ${topLayer} && v.hologram.layer_mode == ${HOLOGRAM_LAYER_MODES.SINGLE}` }
-	);
-	if(topLayer > 0) {
-		layerAnimationStates["default"]["transitions"].push(
-			{ "l_0-": `v.hologram.layer > -1 && v.hologram.layer != ${topLayer - 1} && v.hologram.layer_mode == ${HOLOGRAM_LAYER_MODES.ALL_BELOW}` },
-			{ [`l_${topLayer - 1}-`]: `v.hologram.layer == ${topLayer - 1} && v.hologram.layer_mode == ${HOLOGRAM_LAYER_MODES.ALL_BELOW}` }
-		);
-	}
 	let entityDescription = entityFile["minecraft:client_entity"]["description"];
-    
     hologramRenderControllers["render_controllers"]["controller.render.armor_stand.hologram"]["geometry"] = "Geometry.default";
     entityDescription["geometry"]["default"] = "geometry.armor_stand.hologram";
 
-	let totalMaterialCountCalculated = 0;
 	let totalBlocksToValidateByStructure = [];
 	let totalBlocksToValidateByStructureByLayer = [];
 	let uniqueBlocksToValidate = new Set();
@@ -232,11 +213,10 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 		let blocksToValidateByLayer = [];
 		let structureAnimation = {
             "format_version": "1.8.0",
-            "animations": {
-                [`animation.hologram.structure_${structureI}`]: { "loop": true, "bones": {} }
-            }
+            "animations": { [`animation.hologram.structure_${structureI}`]: { "loop": true, "bones": {} } }
         };
         const structureAnimBones = structureAnimation.animations[`animation.hologram.structure_${structureI}`].bones;
+        const particleAlignmentBone = hologramGeo["minecraft:geometry"][0].bones.find(b => b.name === 'particle_alignment');
 
 		for(let y = 0; y < structureSize[1]; y++) {
 			let blocksToValidateCurrentLayer = 0; 
@@ -273,10 +253,7 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 			blocksToValidateByLayer.push(blocksToValidateCurrentLayer);
 		}
 		
-        const particleAlignmentBone = hologramGeo["minecraft:geometry"][0].bones.find(b => b.name === 'particle_alignment');
-        blocksToValidate.forEach(b => {
-             particleAlignmentBone.locators[b.locator] = [8 - 16 * b.pos[0], 16 * b.pos[1], -8 + 16 * b.pos[2]];
-        });
+        blocksToValidate.forEach(b => { particleAlignmentBone.locators[b.locator] = [8 - 16 * b.pos[0], 16 * b.pos[1], -8 + 16 * b.pos[2]]; });
 
         const animName = `hologram.structure_${structureI}`;
         const animControllerName = `controller.animation.armor_stand.hologram.structures`;
@@ -288,10 +265,7 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
         
         const states = hologramAnimationControllers.animation_controllers[animControllerName].states;
         const stateName = `s_${structureI}`;
-        states[stateName] = {
-            "animations": [animName],
-            "transitions": [{ [`s_${(structureI + 1) % allStructureIndicesByLayer.length}`]: `v.hologram.structure_index != ${structureI}`}]
-        };
+        states[stateName] = { "animations": [animName], "transitions": [{ [`s_${(structureI + 1) % allStructureIndicesByLayer.length}`]: `v.hologram.structure_index != ${structureI}`}] };
         if (structureI === 0) {
            states["s_0"].transitions.push({[stateName]: `v.hologram.structure_index == ${structureI}`});
         } else {
@@ -307,8 +281,9 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 		totalBlocksToValidateByStructure.push(blocksToValidate.length);
 		totalBlocksToValidateByStructureByLayer.push(blocksToValidateByLayer);
 	});
+	//===[ END OF REWRITTEN LOGIC ]===//
 	
-    totalMaterialCountCalculated = materialList.totalMaterialCount;
+	let totalMaterialCountCalculated = materialList.totalMaterialCount;
 
 	entityDescription["materials"]["hologram"] = "holoprint_hologram";
 	entityDescription["materials"]["hologram.wrong_block_overlay"] = "holoprint_hologram.wrong_block_overlay";
@@ -1488,185 +1463,22 @@ function stringifyWithFixedDecimals(value) {
 }
 
 // Type definitions (HoloPrintConfig, ItemCriteria, Block, etc.)
-/**
- * An object for storing HoloPrint config options.
- * @typedef {Object} HoloPrintConfig
- * @property {Array<String>} IGNORED_BLOCKS
- * @property {Array<String>} IGNORED_MATERIAL_LIST_BLOCKS
- * @property {Number} SCALE
- * @property {Number} OPACITY
- * @property {Boolean} MULTIPLE_OPACITIES Whether to generate multiple opacity images and allow in-game switching, or have a constant opacity
- * @property {String} TINT_COLOR Hex RGB #xxxxxx
- * @property {Number} TINT_OPACITY 0-1
- * @property {Number} MINI_SCALE Size of ghost blocks when in the mini view for layers
- * @property {Number} TEXTURE_OUTLINE_WIDTH Measured in pixels, x ∈ [0, 1], x ∈ 2^ℝ
- * @property {String} TEXTURE_OUTLINE_COLOR A colour string
- * @property {Number} TEXTURE_OUTLINE_OPACITY 0-1
- * @property {Boolean} SPAWN_ANIMATION_ENABLED
- * @property {Number} SPAWN_ANIMATION_LENGTH Length of each individual block's spawn animation (seconds)
- * @property {Boolean} PLAYER_CONTROLS_ENABLED
- * @property {HoloPrintControlsConfig} CONTROLS
- * @property {Boolean} MATERIAL_LIST_ENABLED
- * @property {Boolean} RETEXTURE_CONTROL_ITEMS
- * @property {Number} CONTROL_ITEM_TEXTURE_SCALE How much to scale control item overlay textures. When compositing textures, MCBE scales all textures to the maximum, so the size of the overlay control texture has to be the LCM of itself and in-game items. Hence, if in-game items have a higher resolution than expected, they will probably be scaled wrong. The solution is to scale the overlay textures even more, which can be adjusted with this.
- * @property {Boolean} RENAME_CONTROL_ITEMS
- * @property {Array<Number>} WRONG_BLOCK_OVERLAY_COLOR Clamped colour quartet
- * @property {Vec3} INITIAL_OFFSET
- * @property {Number} BACKUP_SLOT_COUNT
- * @property {String|undefined} PACK_NAME The name of the completed pack; will default to the structure file names
- * @property {Blob} PACK_ICON_BLOB Blob for `pack_icon.png`
- * @property {Array<String>} AUTHORS
- * @property {String|undefined} DESCRIPTION
- * @property {Number} COMPRESSION_LEVEL
- * @property {Number} PREVIEW_BLOCK_LIMIT The maximum number of blocks a structure can have for rendering a preview
- * @property {Boolean} SHOW_PREVIEW_SKYBOX
- */
-/**
- * Controls which items are used for in-game controls.
- * @typedef {Object} HoloPrintControlsConfig
- * @property {ItemCriteria} TOGGLE_RENDERING
- * @property {ItemCriteria} CHANGE_OPACITY
- * @property {ItemCriteria} TOGGLE_TINT
- * @property {ItemCriteria} TOGGLE_VALIDATING
- * @property {ItemCriteria} CHANGE_LAYER Both for players and armour stands
- * @property {ItemCriteria} DECREASE_LAYER
- * @property {ItemCriteria} CHANGE_LAYER_MODE Single layer or all layers below
- * @property {ItemCriteria} MOVE_HOLOGRAM
- * @property {ItemCriteria} ROTATE_HOLOGRAM
- * @property {ItemCriteria} CHANGE_STRUCTURE For players only
- * @property {ItemCriteria} DISABLE_PLAYER_CONTROLS
- * @property {ItemCriteria} BACKUP_HOLOGRAM Force armour stands to try and backup the hologram state for 30s.
- */
-/**
- * Stores item names and tags for checking items. Leaving everything empty will check for nothing being held.
- * @typedef {Object} ItemCriteria
- * @property {Array<String>} names Item names the matching item could have. The `minecraft:` namespace will be used if no namespace is specified.
- * @property {Array<String>} tags Item tags the matching item could have. The `minecraft:` namespace will be used if no namespace is specified.
- */
-/**
- * A block as stored in NBT.
- * @typedef {Object} NBTBlock
- * @property {String} name The block's ID
- * @property {Record<String, Number|String>} states Block states
- * @property {Number} version
- */
-/**
- * A block palette entry, similar to how it appears in the NBT, as used in HoloPrint.
- * @typedef {Object} Block
- * @property {String} name The block's ID
- * @property {Record<String, Number|String>} [states] Block states
- * @property {Object} [block_entity_data] Block entity data
- */
-/**
- * An unpositioned bone for geometry files without name or parent. All units/coordinates are relative to (0, 0, 0).
- * @typedef {Object} BoneTemplate
- * @property {Vec3} [pivot] The block's center point of rotation
- * @property {Vec3} [rotation] The block's rotation
- * @property {Array} cubes
- */
-/**
- * A positioned bone for geometry files.
- * @typedef {Object} Bone
- * @augments BoneTemplate
- * @property {String} name
- * @property {String} parent
- */
-/**
- * A texture reference, made in BlockGeoMaker.js and turned into a texture in TextureAtlas.js.
- * @typedef {Object} TextureReference
- * @property {Vec2} uv UV coordinates
- * @property {Vec2} uv_size	UV size
- * @property {String} block_name Block ID to get the texture from
- * @property {String} texture_face Which face's texture to use
- * @property {Number} variant Which terrain_texture.json variant to use
- * @property {Boolean} croppable If a texture can be cropped automatically
- * @property {String} [texture_path_override] An overriding texture file path to look at
- * @property {String} [terrain_texture_override] A terrain texture key override; will override block_name and texture_face
- * @property {Vec3} [tint] A tint override
- */
-/**
- * An unresolved texture fragment containing an image path, tint, and UV position and size.
- * @typedef {Object} TextureFragment
- * @property {String} texturePath
- * @property {Vec3} [tint]
- * @property {Boolean} [tint_like_png]
- * @property {Number} opacity
- * @property {Vec2} uv
- * @property {Vec2} uv_size
- * @property {Boolean} croppable If a texture can be cropped automatically
- */
-/**
- * An image fragment containing an image, UV position, and UV size.
- * @typedef {Object} ImageFragment
- * @property {Image} image
- * @property {Number} w Width
- * @property {Number} h Height
- * @property {Number} sourceX
- * @property {Number} sourceY
- * @property {{ x: Number, y: Number, w: Number, h: Number }} crop
- */
-/**
- * An entry in a material list.
- * @typedef {Object} MaterialListEntry
- * @property {String} itemName
- * @property {String} translationKey
- * @property {String} translatedName
- * @property {Number} count How many of this item is required
- * @property {String} partitionedCount A formatted string representing partitions of the total count
- * @property {Number|undefined} auxId The item's aux ID
- */
-/**
- * @typedef {Object} TypedBlockStateProperty
- * @property {Number} [int] - An integer property.
- * @property {String} [string] - A string property.
- * @property {Number} [byte] - A byte property.
- */
-/**
- * @typedef {Object} BlockUpdateSchemaFlattenRule
- * @property {String} prefix - The prefix for the flattened property.
- * @property {String} flattenedProperty - The name of the flattened property.
- * @property {"int"|"string"|"byte"} [flattenedPropertyType] - The type of the flattened property.
- * @property {String} suffix - The suffix for the flattened property.
- * @property {Record<String, String>} [flattenedValueRemaps] - A mapping of flattened values.
- */
-/**
- * @typedef {Object} BlockUpdateSchemaRemappedState
- * @property {Record<String, TypedBlockStateProperty>|null} oldState - The property values before the remapping.
- * @property {String} [newName] - An optional new name for the block.
- * @property {BlockUpdateSchemaFlattenRule} [newFlattenedName] - An optional flattened property rule providing a new name.
- * @property {Record<String, TypedBlockStateProperty>|null} newState - The new property values after the remapping.
- * @property {Array<String>} [copiedState] - Optional list of property names to copy from the old state.
- */
-
-/**
- * @typedef {Object} BlockUpdateSchemaSkeleton
- * @property {String} filename
- * @property {Number} maxVersionMajor - The major version (must be >= 0).
- * @property {Number} maxVersionMinor - The minor version (must be >= 0).
- * @property {Number} maxVersionPatch - The patch version (must be >= 0).
- * @property {Number} maxVersionRevision - The revision version (must be >= 0).
- */
-/**
- * @typedef {Object} BlockUpdateSchema
- * @property {Number} maxVersionMajor - The major version (must be >= 0).
- * @property {Number} maxVersionMinor - The minor version (must be >= 0).
- * @property {Number} maxVersionPatch - The patch version (must be >= 0).
- * @property {Number} maxVersionRevision - The revision version (must be >= 0).
- * @property {Record<String, String>} [renamedIds] - Mapping of renamed IDs.
- * @property {Record<String, Record<String, TypedBlockStateProperty>>} [addedProperties] - Mapping of added properties.
- * @property {Record<String, Record<String, String>>} [renamedProperties] - Mapping of renamed properties.
- * @property {Array<String>} [removedProperties] - Mapping of removed properties.
- * @property {Record<String, Record<String, String>>} [remappedPropertyValues] - Mapping of remapped property values.
- * @property {Record<String, Array<{ old: TypedBlockStateProperty, new: TypedBlockStateProperty }>>} [remappedPropertyValuesIndex] - Index of remapped property values.
- * @property {Record<String, BlockUpdateSchemaFlattenRule>} [flattenedProperties] - Mapping of flattened properties.
- * @property {Record<String, Array<BlockUpdateSchemaRemappedState>>} [remappedStates] - Mapping of remapped states.
- */
-/**
- * 2D vector.
- * @typedef {[Number, Number]} Vec2
- */
-/**
- * 3D vector.
- * @typedef {[Number, Number, Number]} Vec3
- */
+/** @typedef {Object} HoloPrintConfig ... (omitted for brevity) */
+/** @typedef {Object} HoloPrintControlsConfig ... (omitted for brevity) */
+/** @typedef {Object} ItemCriteria ... (omitted for brevity) */
+/** @typedef {Object} NBTBlock ... (omitted for brevity) */
+/** @typedef {Object} Block ... (omitted for brevity) */
+/** @typedef {Object} BoneTemplate ... (omitted for brevity) */
+/** @typedef {Object} Bone ... (omitted for brevity) */
+/** @typedef {Object} TextureReference ... (omitted for brevity) */
+/** @typedef {Object} TextureFragment ... (omitted for brevity) */
+/** @typedef {Object} ImageFragment ... (omitted for brevity) */
+/** @typedef {Object} MaterialListEntry ... (omitted for brevity) */
+/** @typedef {Object} TypedBlockStateProperty ... (omitted for brevity) */
+/** @typedef {Object} BlockUpdateSchemaFlattenRule ... (omitted for brevity) */
+/** @typedef {Object} BlockUpdateSchemaRemappedState ... (omitted for brevity) */
+/** @typedef {Object} BlockUpdateSchemaSkeleton ... (omitted for brevity) */
+/** @typedef {Object} BlockUpdateSchema ... (omitted for brevity) */
+/** @typedef {[Number, Number]} Vec2 */
+/** @typedef {[Number, Number, Number]} Vec3 */
 // END OF MERGED AND OPTIMIZED HoloPrint.js
