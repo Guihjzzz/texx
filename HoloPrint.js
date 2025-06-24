@@ -1,4 +1,4 @@
-// START OF MERGED AND OPTIMIZED HoloPrint.js (HoloLab Version)
+// START OF MERGED AND OPTIMIZED HoloPrint.js (HoloLab Version) - High-Performance Rewrite
 
 import * as NBT from "nbtify";
 import { ZipWriter, TextReader, BlobWriter, BlobReader, ZipReader } from "@zip.js/zip.js";
@@ -177,10 +177,7 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 					imageUv["uv"][1] += imageUv["uv_size"][1];
 					imageUv["uv_size"][1] *= -1;
 				}
-				cube["uv"][faceName] = {
-					"uv": imageUv["uv"],
-					"uv_size": imageUv["uv_size"]
-				};
+				cube["uv"][faceName] = { "uv": imageUv["uv"], "uv_size": imageUv["uv_size"] };
 			});
 		});
 	});
@@ -192,11 +189,7 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
         const templateBoneName = `template_${paletteIndex}`;
         let positionedBoneTemplate = blockGeoMaker.positionBoneTemplate(boneTemplate, [0, 0, 0]);
         hologramGeo["minecraft:geometry"][0]["bones"].push({
-            "name": templateBoneName,
-            "parent": "hologram_root",
-            "pivot": [8, 0, -8],
-            "scale": 0.0,
-            ...positionedBoneTemplate
+            "name": templateBoneName, "parent": "hologram_root", "pivot": [8, 0, -8], "scale": 0.0, ...positionedBoneTemplate
         });
     });
 
@@ -240,10 +233,7 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 		let structureAnimation = {
             "format_version": "1.8.0",
             "animations": {
-                [`animation.hologram.structure_${structureI}`]: {
-                    "loop": true,
-                    "bones": {}
-                }
+                [`animation.hologram.structure_${structureI}`]: { "loop": true, "bones": {} }
             }
         };
         const structureAnimBones = structureAnimation.animations[`animation.hologram.structure_${structureI}`].bones;
@@ -257,7 +247,6 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
 						let paletteI = blockPaletteIndices[blockI];
 						if(!(paletteI in boneTemplatePalette)) return;
 						
-						const templateBoneName = `template_${paletteI}`;
                         const blockPosId = `p_${x}_${y}_${z}_${layerI}`;
                         const blockCoordinateName = `b_${x}_${y}_${z}`;
 
@@ -267,7 +256,7 @@ export async function makePack(structureFiles, config = {}, resourcePackStack, p
                         };
 
                         if (!hologramGeo["minecraft:geometry"][0]["bones"].some(b => b.name === blockPosId)) {
-                             hologramGeo["minecraft:geometry"][0]["bones"].push({ "name": blockPosId, "parent": templateBoneName });
+                             hologramGeo["minecraft:geometry"][0]["bones"].push({ "name": blockPosId, "parent": `template_${paletteI}` });
                         }
                         
 						if (layerI === 0) {
@@ -1149,7 +1138,6 @@ function addPlayerControlsToRenderControllers(config, defaultPlayerRenderControl
 		rotateHologram: itemCriteriaToMolang(config.CONTROLS.ROTATE_HOLOGRAM),
 		changeStructure: itemCriteriaToMolang(config.CONTROLS.CHANGE_STRUCTURE),
 		backupHologram: itemCriteriaToMolang(config.CONTROLS.BACKUP_HOLOGRAM),
-        // CORREÇÃO: Adicionada a variável que faltava
 		disablePlayerControls: itemCriteriaToMolang(config.CONTROLS.DISABLE_PLAYER_CONTROLS),
 		ACTIONS: entityScripts.ACTIONS
 	});
